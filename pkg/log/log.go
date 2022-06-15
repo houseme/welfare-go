@@ -1,4 +1,4 @@
-package pkg
+package log
 
 import (
 	"context"
@@ -8,29 +8,48 @@ import (
 	"github.com/natefinch/lumberjack"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/houseme/welfare-go/pkg"
 )
 
 var (
 	ErrInvalidKey = errors.New("invalid key")
-	LogPath       = os.TempDir()
+)
+
+type Level zapcore.Level
+
+const (
+	// DebugLevel logs are typically voluminous, and are usually disabled in
+	// production.
+	DebugLevel = Level(zap.DebugLevel)
+	// InfoLevel is the default logging priority.
+	InfoLevel = Level(zap.InfoLevel)
+	// WarnLevel logs are more important than Info, but don't need individual
+	// human review.
+	WarnLevel = Level(zap.WarnLevel)
+	// ErrorLevel logs are high-priority. If an application is running smoothly,
+	// it shouldn't generate any error-level logs.
+	ErrorLevel = Level(zap.ErrorLevel)
+	// DPanicLevel logs are particularly important errors. In development the
+	// logger panics after writing the message.
+	DPanicLevel = Level(zap.DPanicLevel)
+	// PanicLevel logs a message, then panics.
+	PanicLevel = Level(zap.PanicLevel)
+	// FatalLevel logs a message, then calls os.Exit(1).
+	FatalLevel = Level(zapcore.FatalLevel)
 )
 
 // Logger is the global logger instance.
 type Logger struct {
-	Level string `json:"level"`
+	Level Level `json:"level"`
 	Log   *zap.Logger
 }
 
-const (
-	DebugLevel = "debug"
-	ErrorLevel = "error"
-)
-
-// NewLog is the global logger instance.
-func NewLog(ctx context.Context, logPath, loglevel string) *Logger {
+// New is the global logger instance.
+func New(ctx context.Context, logPath string, loglevel Level) *Logger {
 	var coreArr []zapcore.Core
 
-	if logPath != "" {
+	if pkg.Helper().Trim(logPath) != "" {
 		logPath = os.TempDir()
 	}
 
@@ -47,7 +66,7 @@ func NewLog(ctx context.Context, logPath, loglevel string) *Logger {
 	highPriority := zap.LevelEnablerFunc(func(lev zapcore.Level) bool { // error级别
 		return lev >= zap.ErrorLevel
 	})
-	if loglevel == DebugLevel {
+	if loglevel <= InfoLevel {
 		lowPriority := zap.LevelEnablerFunc(func(lev zapcore.Level) bool { // info和debug级别,debug级别是最低的
 			return lev < zap.ErrorLevel && lev >= zap.DebugLevel
 		})

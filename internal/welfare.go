@@ -2,297 +2,187 @@ package internal
 
 import (
 	"context"
-	"errors"
-	"sync"
-	"time"
+	"os"
 
-	"github.com/houseme/gocrypto"
 	"github.com/houseme/gocrypto/rsa"
 
-	"github.com/houseme/welfare-go/pkg"
-)
-
-const (
-	// DevGateway .测试环境网关地址
-	DevGateway = "https://sandbox-api-welfare.wasair.com/api.v2/partner/base"
-
-	// ProdGateway .生产环境网关地址
-	ProdGateway = "https://api-welfare.wasair.com/api.v2/partner/base"
-
-	// Version .
-	Version = "2.0.0"
-
-	// DevEnvironment .
-	DevEnvironment = "dev"
-
-	// ProdEnvironment .
-	ProdEnvironment = "prod"
-
-	Format = "json"
-
-	// EncryptType Encrypt Type
-	EncryptType = "RSA2"
-
-	// SignType sign type
-	SignType = "RSA2"
-
-	// PublicKeyDataType public key data type
-	PublicKeyDataType = gocrypto.Base64
-
-	// PrivateKeyType private key type
-	PrivateKeyType = gocrypto.PKCS1
-
-	// PrivateKeyDataType private key data type
-	PrivateKeyDataType = gocrypto.Base64
-
-	// Timeout time out 5*time.Second
-	Timeout = 5 * time.Second
-)
-
-var (
-	once   sync.Once
-	secret rsa.RSASecret
+	"github.com/houseme/welfare-go/pkg/log"
 )
 
 // Welfare .
 type Welfare struct {
-	Gateway     string
-	Channel     string
-	ServiceType string
-	Logger      *pkg.Logger
-	Opt         Options
-	Secret      *rsa.RSASecret
+	ctx         context.Context
+	gateway     string
+	channel     string
+	serviceType string
+	opt         Options
+	logger      *log.Logger
+	secret      *rsa.RSASecret
 }
 
-// Option The option is a polaris option.
-type Option func(o *Options)
-
-type Options struct {
-	// Version
-	Version string `json:"version"`
-
-	// required, Channel in welfare
-	Channel string
-
-	// required, Format access token
-	Format string
-
-	// optional, EncryptType in welfare. Default value is RSA2
-	EncryptType string
-
-	// service sign type in welfare. Default value is RSA2
-	SignType string
-
-	// service public key. Default value is ""
-	PublicKey string
-
-	// To show the public key data type. Default value is gocrypto.Base64.
-	PublicKeyDataType gocrypto.Encode
-
-	// PrivateKey in welfare . Default value is True.
-	PrivateKey string
-
-	// To show the private key data type. Default value is gocrypto.Base64.
-	PrivateKeyDataType gocrypto.Encode
-
-	// PrivateKeyType in welfare. Default value is gocrypto.Secret.
-	PrivateKeyType gocrypto.Secret
-
-	// optional, Timeout for the single query. Default value is global config
-	// Total is (5 time.Second) * Timeout
-	Timeout time.Duration
-
-	// optional, retry count. Default value is global config
-	RetryCount int
-}
-
-// 合作伙伴请求平台的 serviceType
-const (
-	// LrUniEntUserCreate 注册用户信息
-	lrUniEntUserCreate = "lr.uni.ent.user.create"
-
-	// LrUniEntUserAuthorization 注册用户授权
-	lrUniEntUserAuthorization = "lr.uni.ent.user.authorization"
-
-	// LrUniEntBalanceQry 用户账户余额查询
-	lrUniEntBalanceQry = "lr.uni.ent.user.balance.qry"
-
-	// LrUniEntOrderCreate 统一下单
-	lrUniEntOrderCreate = "lr.uni.ent.order.create"
-
-	// LrUniEntOrderQry 订单查询
-	lrUniEntOrderQry = "lr.uni.ent.order.qry"
-)
-
-// 针对平台方请求第三方合作伙伴的 serviceType
-const (
-	// ThirdUniEntBalanceQry 用户账户余额查询
-	thirdUniEntBalanceQry = "third.uni.ent.user.balance.qry"
-
-	// ThirdUniEntDeduct 余额扣除
-	thirdUniEntDeduct = "third.uni.ent.user.balance.deduct"
-
-	// ThirdUniEntDeductStatus 余额扣除状态查询
-	thirdUniEntDeductStatus = "third.uni.ent.user.balance.deduct.status"
-
-	// ThirdUniEntRefund 余额退款
-	thirdUniEntRefund = "third.uni.ent.user.balance.refund"
-
-	// ThirdUniEntReFundQry 退款查询
-	thirdUniEntReFundQry = "third.uni.ent.refund.qry"
-
-	// ThirdUniEntCancel 订单撤销
-	thirdUniEntCancel = "third.uni.ent.cancel"
-)
-
-// SetServiceType .
-func (w *Welfare) SetServiceType(ctx context.Context, serviceType string) {
-	w.ServiceType = serviceType
-}
-
-// SetLogger .
-func (w *Welfare) SetLogger(ctx context.Context, logger *pkg.Logger) {
-	w.Logger = logger
-}
-
-// SetChannel .
-func (w *Welfare) SetChannel(ctx context.Context, channel string) {
-	w.Channel = channel
-}
-
-// LrUniEntUserCreate 注册用户信息
-func (w *Welfare) LrUniEntUserCreate(ctx context.Context) string {
-	return lrUniEntUserCreate
-}
-
-// LrUniEntUserAuthorization 注册用户授权
-func (w *Welfare) LrUniEntUserAuthorization(ctx context.Context) string {
-	return lrUniEntUserAuthorization
-}
-
-// LrUniEntBalanceQry 用户账户余额查询
-func (w *Welfare) LrUniEntBalanceQry(ctx context.Context) string {
-	return lrUniEntBalanceQry
-}
-
-// LrUniEntOrderCreate 统一下单
-func (w *Welfare) LrUniEntOrderCreate(ctx context.Context) string {
-	return lrUniEntOrderCreate
-}
-
-// LrUniEntOrderQry 订单查询
-func (w *Welfare) LrUniEntOrderQry(ctx context.Context) string {
-	return lrUniEntOrderQry
-}
-
-// ThirdUniEntBalanceQry 用户账户余额查询
-func (w *Welfare) ThirdUniEntBalanceQry(ctx context.Context) string {
-	return thirdUniEntBalanceQry
-}
-
-// ThirdUniEntReFundQry 退款查询
-func (w *Welfare) ThirdUniEntReFundQry(ctx context.Context) string {
-	return thirdUniEntReFundQry
-}
-
-// ThirdUniEntRefund 退款申请
-func (w *Welfare) ThirdUniEntRefund(ctx context.Context) string {
-	return thirdUniEntRefund
-}
-
-// ThirdUniEntDeduct 余额扣除
-func (w *Welfare) ThirdUniEntDeduct(ctx context.Context) string {
-	return thirdUniEntDeduct
-}
-
-// ThirdUniEntDeductStatus 余额扣除查询
-func (w *Welfare) ThirdUniEntDeductStatus(ctx context.Context) string {
-	return thirdUniEntDeductStatus
-}
-
-// ThirdUniEntCancel 订单撤销
-func (w *Welfare) ThirdUniEntCancel(ctx context.Context) string {
-	return thirdUniEntCancel
-}
-
-// GetGateway .
-func (w *Welfare) GetGateway(ctx context.Context) string {
-	return w.Gateway
-}
-
-// GetChannel .
-func (w *Welfare) GetChannel(ctx context.Context) string {
-	return w.Channel
-}
-
-// GetServiceType .
-func (w *Welfare) GetServiceType(ctx context.Context) string {
-	return w.ServiceType
-}
-
-// GetLogger .
-func (w *Welfare) GetLogger(ctx context.Context) *pkg.Logger {
-	return w.Logger
-}
-
-// GetTimeout .
-func (w *Welfare) GetTimeout(ctx context.Context) time.Duration {
-	return w.Opt.Timeout
-}
-
-// SetSecret .
-func (w *Welfare) SetSecret(ctx context.Context, secret *rsa.RSASecret) {
-	w.Secret = secret
-}
-
-// InitRSA .
-func (w *Welfare) InitRSA(ctx context.Context) error {
-	if len(w.Opt.PublicKey) == 0 || len(w.Opt.PrivateKey) == 0 {
-		w.Logger.Log.Error("publicKey or privateKey is empty")
-		return errors.New("publicKey or privateKey is empty")
+// New Create a new Welfare.
+func New(ctx context.Context, channel, environment string, opts ...Option) *Welfare {
+	var gateway = devGateway
+	if environment == prodEnvironment {
+		gateway = prodGateway
 	}
-	w.Secret = &rsa.RSASecret{
-		PublicKey:          w.Opt.PublicKey,
-		PrivateKey:         w.Opt.PrivateKey,
-		PublicKeyDataType:  w.Opt.PublicKeyDataType,
-		PrivateKeyType:     w.Opt.PrivateKeyType,
-		PrivateKeyDataType: w.Opt.PrivateKeyDataType,
+
+	op := Options{
+		Version:            version,
+		Format:             format,
+		EncryptType:        encryptType,
+		SignType:           signType,
+		PublicKey:          "",
+		PublicKeyDataType:  publicKeyDataType,
+		PrivateKeyDataType: privateKeyDataType,
+		PrivateKey:         "",
+		PrivateKeyType:     privateKeyType,
+		Timeout:            timeout,
+		RetryCount:         0,
+		Loglevel:           log.InfoLevel,
+		LogPath:            os.TempDir(),
+	}
+	for _, option := range opts {
+		option(&op)
+	}
+	w := &Welfare{
+		ctx:     ctx,
+		channel: channel,
+		gateway: gateway,
+		logger:  log.New(ctx, op.LogPath, op.Loglevel),
+		opt:     op,
+	}
+
+	if len(op.PrivateKey) > 0 && len(op.PublicKey) > 0 {
+		w.secret = &rsa.RSASecret{
+			PublicKey:          op.PublicKey,
+			PrivateKey:         op.PrivateKey,
+			PublicKeyDataType:  op.PublicKeyDataType,
+			PrivateKeyType:     op.PrivateKeyType,
+			PrivateKeyDataType: op.PrivateKeyDataType,
+		}
+	}
+
+	return w
+}
+
+// InitSecret .
+func (w *Welfare) InitSecret(ctx context.Context) error {
+	if len(w.opt.PublicKey) == 0 || len(w.opt.PrivateKey) == 0 {
+		w.logger.Log.Info(ErrInvalidPublicKeyOrPrivateKey.Error())
+		return ErrInvalidPublicKeyOrPrivateKey
+	}
+	w.secret = &rsa.RSASecret{
+		PublicKey:          w.opt.PublicKey,
+		PrivateKey:         w.opt.PrivateKey,
+		PublicKeyDataType:  w.opt.PublicKeyDataType,
+		PrivateKeyType:     w.opt.PrivateKeyType,
+		PrivateKeyDataType: w.opt.PrivateKeyDataType,
 	}
 	return nil
 }
 
-// GetSecret .
-func (w *Welfare) GetSecret(ctx context.Context) rsa.RSASecret {
-	return *w.Secret
+// Init .
+func (w *Welfare) Init(ctx context.Context, opts ...Option) error {
+	op := w.opt
+	for _, option := range opts {
+		option(&op)
+	}
+	if len(op.PublicKey) == 0 || len(op.PrivateKey) == 0 {
+		w.logger.Log.Info(ErrInvalidPublicKeyOrPrivateKey.Error())
+		return ErrInvalidPublicKeyOrPrivateKey
+	}
+	w.secret = &rsa.RSASecret{
+		PublicKey:          op.PublicKey,
+		PrivateKey:         op.PrivateKey,
+		PublicKeyDataType:  op.PublicKeyDataType,
+		PrivateKeyType:     op.PrivateKeyType,
+		PrivateKeyDataType: op.PrivateKeyDataType,
+	}
+	return nil
 }
 
-// SetPublicKey .
-func (w *Welfare) SetPublicKey(ctx context.Context, publicKey string) {
-	w.Opt.PublicKey = publicKey
+// Context .
+func (w *Welfare) Context() context.Context {
+	return w.ctx
 }
 
-// SetPrivateKey .
-func (w *Welfare) SetPrivateKey(ctx context.Context, privateKey string) {
-	w.Opt.PrivateKey = privateKey
+// Gateway .
+func (w *Welfare) Gateway(ctx context.Context) string {
+	return w.gateway
 }
 
-// SetPublicKeyDataType .
-func (w *Welfare) SetPublicKeyDataType(ctx context.Context, publicKeyDataType gocrypto.Encode) {
-	w.Opt.PublicKeyDataType = publicKeyDataType
+// Channel .
+func (w *Welfare) Channel(ctx context.Context) string {
+	return w.channel
 }
 
-// SetPrivateKeyType .
-func (w *Welfare) SetPrivateKeyType(ctx context.Context, privateKeyType gocrypto.Secret) {
-	w.Opt.PrivateKeyType = privateKeyType
+// ServiceType .
+func (w *Welfare) ServiceType(ctx context.Context) string {
+	return w.serviceType
 }
 
-// SetPrivateKeyDataType .
-func (w *Welfare) SetPrivateKeyDataType(ctx context.Context, privateKeyDataType gocrypto.Encode) {
-	w.Opt.PrivateKeyDataType = privateKeyDataType
+// Logger .
+func (w *Welfare) Logger(ctx context.Context) *log.Logger {
+	return w.logger
 }
 
-// SetPublicKeyAndPrivateKey  .
-func (w *Welfare) SetPublicKeyAndPrivateKey(ctx context.Context, publicKey, privateKey string) {
-	w.Opt.PublicKey = publicKey
-	w.Opt.PrivateKey = privateKey
+// Options .
+func (w *Welfare) Options(ctx context.Context) Options {
+	return w.opt
+}
+
+// SetServiceType .
+func (w *Welfare) SetServiceType(ctx context.Context, serviceType string) {
+	w.serviceType = serviceType
+}
+
+// SetLogger .
+func (w *Welfare) SetLogger(ctx context.Context, logger *log.Logger) {
+	w.logger = logger
+}
+
+// SetChannel .
+func (w *Welfare) SetChannel(ctx context.Context, channel string) {
+	w.channel = channel
+}
+
+// SetSecret .
+func (w *Welfare) SetSecret(ctx context.Context, secret *rsa.RSASecret) {
+	w.secret = secret
+}
+
+// SetContext .
+func (w *Welfare) SetContext(ctx context.Context) {
+	w.ctx = ctx
+}
+
+// SetGateway .
+func (w *Welfare) SetGateway(ctx context.Context, gateway string) {
+	w.gateway = gateway
+}
+
+// Secret .
+func (w *Welfare) Secret(ctx context.Context) (rsa.RSASecret, error) {
+	if len(w.opt.PublicKey) == 0 || len(w.opt.PrivateKey) == 0 {
+		w.logger.Log.Info(ErrInvalidPublicKeyOrPrivateKey.Error())
+		return rsa.RSASecret{}, ErrInvalidPublicKeyOrPrivateKey
+	}
+	return *w.secret, nil
+}
+
+// Close 关闭
+func (w *Welfare) Close(ctx context.Context) error {
+	if w.logger != nil {
+		return w.logger.Log.Sync()
+	}
+	return nil
+}
+
+// Sync 同步
+func (w *Welfare) Sync(ctx context.Context) error {
+	if w.logger != nil {
+		return w.logger.Log.Sync()
+	}
+	return nil
 }
